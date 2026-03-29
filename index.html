@@ -50,6 +50,7 @@
         min-height: 0;
         padding: 0;
         overflow: hidden;
+        position: relative;
       }
 
       table.outer {
@@ -58,6 +59,8 @@
         height: 100%;
         max-height: 100%;
         table-layout: fixed;
+        position: absolute;
+        inset: 0;
       }
 
       .outer td {
@@ -65,6 +68,14 @@
         padding: 0;
         vertical-align: top;
       }
+      tr.topRow {
+        height: calc(var(--whole-head-h) + var(--quarter-head-h));
+      }
+
+      tr.mainRow {
+        height: calc(100% - (var(--whole-head-h) + var(--quarter-head-h)));
+      }
+
 
       td.cornerCell {
         width: var(--axis-left);
@@ -200,7 +211,7 @@
 
     <div id="layoutWrap">
       <table class="outer">
-        <tr>
+        <tr class="topRow">
           <td class="cornerCell">
             <div class="cornerInner">MIDI / 时值</div>
           </td>
@@ -212,7 +223,7 @@
             </div>
           </td>
         </tr>
-        <tr>
+        <tr class="mainRow">
           <td class="yAxisCell">
             <div id="yAxisViewport">
               <div id="yAxisTrack">
