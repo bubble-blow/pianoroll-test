@@ -312,6 +312,7 @@
       let playTimer = null;
       let activeQuarter = -1;
       let selectedNote = null;
+      const pendingNoteTimers = [];
 
       // 横轴（外层单元格内的嵌套表格）
       const xWholeRow = document.createElement("tr");
@@ -465,16 +466,46 @@
         }
       }
 
-      function collectColumnNoteNames(quarterIndex) {
-        const names = [];
+      function collectColumnNotesByOffset(quarterIndex) {
+        const grouped = new Map();
         for (const row of grid.rows) {
           const cell = row.cells[quarterIndex];
-          if (!cell || !cell.querySelector(".note")) continue;
+          if (!cell) continue;
           const midi = Number(cell.dataset.midi);
           const noteName = window.MIDI_NOTE_NAMES?.[midi - MIDI_MIN] ?? String(midi);
-          names.push(noteName);
+          const notes = cell.querySelectorAll(".note");
+          for (const note of notes) {
+            const offset = parseFloat(note.style.left) || 0;
+            if (!grouped.has(offset)) grouped.set(offset, []);
+            grouped.get(offset).push(noteName);
+          }
         }
-        return names;
+        return grouped;
+      }
+
+      function sendNoteRequest(noteName) {
+        const path = noteName.replaceAll("#", "s");
+        fetch(`http://localhost/${encodeURIComponent(path)}`).catch(() => {});
+      }
+
+      function scheduleColumnPlayback(quarterIndex, quarterMs) {
+        const grouped = collectColumnNotesByOffset(quarterIndex);
+        const cellWidth = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue("--note-cell-min-width")
+        ) || 48;
+        const sortedOffsets = [...grouped.keys()].sort((a, b) => a - b);
+
+        for (const offset of sortedOffsets) {
+          const delay = (offset / cellWidth) * quarterMs;
+          const noteNames = grouped.get(offset) || [];
+          const timerId = setTimeout(() => {
+            console.log(`高亮列 ${quarterIndex} 偏移 ${offset}px 音符:`, noteNames);
+            for (const noteName of noteNames) {
+              sendNoteRequest(noteName);
+            }
+          }, delay);
+          pendingNoteTimers.push(timerId);
+        }
       }
 
       function setHighlight(quarterIndex) {
@@ -484,19 +515,15 @@
         for (const row of grid.rows) {
           row.cells[quarterIndex]?.classList.add("active-col");
         }
-
-        const names = collectColumnNoteNames(quarterIndex);
-        console.log(`高亮列 ${quarterIndex} 音符:`, names);
-        for (const noteName of names) {
-          const path = noteName.replaceAll("#", "s");
-          fetch(`http://localhost/${encodeURIComponent(path)}`).catch(() => {});
-        }
       }
 
       function stopPlayback() {
         if (playTimer) {
           clearInterval(playTimer);
           playTimer = null;
+        }
+        while (pendingNoteTimers.length > 0) {
+          clearTimeout(pendingNoteTimers.pop());
         }
         clearHighlight();
         activeQuarter = -1;
@@ -507,9 +534,11 @@
         const quarterMs = 60000 / bpm;
         stopPlayback();
         setHighlight(0);
+        scheduleColumnPlayback(0, quarterMs);
         playTimer = setInterval(() => {
           const next = (activeQuarter + 1) % QUARTER_COUNT;
           setHighlight(next);
+          scheduleColumnPlayback(next, quarterMs);
         }, quarterMs);
       });
 
