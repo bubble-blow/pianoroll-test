@@ -364,8 +364,15 @@
         const cell = event.target.closest("td");
         if (!cell) return;
 
+        const rect = cell.getBoundingClientRect();
+        const localX = event.clientX - rect.left;
+        const eighthOffset = rect.width / 2;
+        const snappedOffset = localX >= eighthOffset ? eighthOffset : 0;
+
         const note = document.createElement("div");
         note.className = "note";
+        note.style.left = `${snappedOffset}px`;
+        note.dataset.eighth = snappedOffset > 0 ? "1" : "0";
         cell.appendChild(note);
       });
 
