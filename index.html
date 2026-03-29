@@ -392,6 +392,71 @@
         cell.appendChild(note);
       });
 
+      function deleteSelectedNote() {
+        if (!selectedNote) return;
+        const noteToRemove = selectedNote;
+        selectedNote = null;
+        noteToRemove.remove();
+      }
+
+      function moveSelectedNoteBySixteenth(direction) {
+        if (!selectedNote) return;
+        const currentCell = selectedNote.closest("td");
+        if (!currentCell) return;
+
+        const row = currentCell.parentElement;
+        if (!row) return;
+
+        const cellWidth = currentCell.getBoundingClientRect().width;
+        const step = cellWidth / 4;
+        let newLeft = (parseFloat(selectedNote.style.left) || 0) + direction * step;
+        let quarterIndex = Number(currentCell.dataset.quarter);
+
+        while (newLeft < 0) {
+          if (quarterIndex <= 0) {
+            newLeft = 0;
+            break;
+          }
+          quarterIndex -= 1;
+          newLeft += cellWidth;
+        }
+
+        while (newLeft >= cellWidth) {
+          if (quarterIndex >= QUARTER_COUNT - 1) {
+            newLeft = cellWidth - step;
+            break;
+          }
+          quarterIndex += 1;
+          newLeft -= cellWidth;
+        }
+
+        const targetCell = row.querySelector(`td[data-quarter="${quarterIndex}"]`);
+        if (!targetCell) return;
+        targetCell.appendChild(selectedNote);
+        selectedNote.style.left = `${newLeft}px`;
+      }
+
+      window.addEventListener("keydown", (event) => {
+        if (!selectedNote) return;
+
+        if (event.key === "Delete" || event.key === "Backspace") {
+          event.preventDefault();
+          deleteSelectedNote();
+          return;
+        }
+
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          moveSelectedNoteBySixteenth(-1);
+          return;
+        }
+
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          moveSelectedNoteBySixteenth(1);
+        }
+      });
+
       function clearHighlight() {
         if (activeQuarter < 0) return;
         quarterHeadCells[activeQuarter]?.classList.remove("active-col");
