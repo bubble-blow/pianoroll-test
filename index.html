@@ -3,21 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Piano Roll（表格布局）</title>
+    <title>Piano Roll（嵌套表格布局）</title>
     <style>
       :root {
         --bg: #0f1220;
         --panel: #161b2f;
+        --axis-bg: #13182a;
         --line: #2a3255;
         --line-strong: #4f5ea0;
         --text: #e7ebff;
-        --axis-bg: #13182a;
+
+        --axis-left: 78px;
+        --quarter-width: 26px;
+        --row-height: 22px;
+        --whole-head-h: 24px;
+        --quarter-head-h: 18px;
       }
 
       * { box-sizing: border-box; }
 
-      html,
-      body {
+      html, body {
         margin: 0;
         height: 100%;
         background: var(--bg);
@@ -37,95 +42,129 @@
         border-bottom: 1px solid var(--line);
       }
 
-      #viewport {
+      #layoutWrap {
         flex: 1;
-        overflow: auto;
+        min-height: 0;
+        padding: 0;
       }
 
-      #content {
+      table.outer {
+        border-collapse: collapse;
+        width: 100%;
+        height: 100%;
+        table-layout: fixed;
+      }
+
+      .outer td {
+        border: 1px solid var(--line-strong);
+        padding: 0;
+        vertical-align: top;
+      }
+
+      td.cornerCell {
+        width: var(--axis-left);
+        background: var(--axis-bg);
+        text-align: center;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .cornerInner {
+        height: calc(var(--whole-head-h) + var(--quarter-head-h));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      td.xAxisCell,
+      td.yAxisCell,
+      td.noteCell {
+        background: var(--axis-bg);
+      }
+
+      #xAxisViewport,
+      #yAxisViewport {
+        overflow: hidden;
         position: relative;
       }
 
-      table.pianoroll {
-        border-collapse: collapse;
-        table-layout: fixed;
-        background: var(--panel);
+      #xAxisViewport {
+        height: calc(var(--whole-head-h) + var(--quarter-head-h));
       }
 
-      .pianoroll th,
-      .pianoroll td {
+      #yAxisViewport {
+        width: var(--axis-left);
+        height: 100%;
+      }
+
+      #xAxisTrack,
+      #yAxisTrack {
+        will-change: transform;
+      }
+
+      table.axisX,
+      table.axisY,
+      table.grid {
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      table.axisX th,
+      table.axisY th,
+      table.grid td {
         border: 1px solid var(--line);
         padding: 0;
       }
 
-      .corner,
-      .midi,
-      .head-whole,
-      .head-quarter {
-        position: sticky;
-        background: var(--axis-bg);
-        z-index: 5;
-      }
-
-      .corner {
-        left: 0;
-        top: 0;
-        min-width: 72px;
-        width: 72px;
-        text-align: center;
-        font-size: 12px;
-        z-index: 20;
-        border-right-color: var(--line-strong) !important;
-        border-bottom-color: var(--line-strong) !important;
-      }
-
-      .head-whole,
-      .head-quarter {
-        top: 0;
-        text-align: left;
-        font-size: 11px;
+      table.axisX th {
+        width: var(--quarter-width);
         color: #c9d1ff;
+        font-size: 11px;
+        font-weight: 500;
+        background: var(--axis-bg);
       }
 
-      .head-whole {
-        height: 20px;
+      .wholeHead {
+        height: var(--whole-head-h);
         border-bottom-color: var(--line-strong) !important;
+        text-align: left;
+        padding-left: 2px !important;
       }
 
-      .head-quarter {
-        height: 14px;
+      .quarterHead {
+        height: var(--quarter-head-h);
       }
 
-      .head-whole strong {
-        margin-left: 2px;
-        font-weight: 600;
+      .wholeStart {
+        border-left-color: var(--line-strong) !important;
       }
 
-      .midi {
-        left: 0;
-        width: 72px;
-        min-width: 72px;
+      table.axisY th {
+        width: var(--axis-left);
+        height: var(--row-height);
         text-align: right;
         padding-right: 8px !important;
         font-size: 11px;
         color: #c9d1ff;
-        border-right-color: var(--line-strong) !important;
+        background: var(--axis-bg);
       }
 
-      td.cell,
-      th.head-quarter,
-      th.head-whole {
-        width: 26px;
+      #notesViewport {
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background: var(--panel);
       }
 
-      tr.pitch-row td.cell {
-        height: 22px;
+      #notesContent {
         position: relative;
       }
 
-      th.head-quarter.whole-start,
-      td.cell.whole-start {
-        border-left-color: var(--line-strong);
+      table.grid td {
+        width: var(--quarter-width);
+        height: var(--row-height);
+        position: relative;
+        background: var(--panel);
       }
 
       .note {
@@ -147,83 +186,107 @@
     </style>
   </head>
   <body>
-    <h1 class="title">Piano Roll（表格布局，点击网格创建音符）</h1>
-    <div id="viewport">
-      <div id="content">
-        <table class="pianoroll" id="pianoroll"></table>
-      </div>
+    <h1 class="title">Piano Roll（嵌套表格 + 轴跟随滚动）</h1>
+
+    <div id="layoutWrap">
+      <table class="outer">
+        <tr>
+          <td class="cornerCell">
+            <div class="cornerInner">MIDI / 时值</div>
+          </td>
+          <td class="xAxisCell">
+            <div id="xAxisViewport">
+              <div id="xAxisTrack">
+                <table class="axisX" id="axisX"></table>
+              </div>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td class="yAxisCell">
+            <div id="yAxisViewport">
+              <div id="yAxisTrack">
+                <table class="axisY" id="axisY"></table>
+              </div>
+            </div>
+          </td>
+          <td class="noteCell">
+            <div id="notesViewport">
+              <div id="notesContent">
+                <table class="grid" id="grid"></table>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
     </div>
 
     <script>
       const MIDI_MIN = 21;
       const MIDI_MAX = 108;
+      const MIDI_COUNT = MIDI_MAX - MIDI_MIN + 1;
       const QUARTER_COUNT = 256;
       const QUARTERS_PER_WHOLE = 4;
 
-      const table = document.getElementById("pianoroll");
-      const thead = document.createElement("thead");
-      const tbody = document.createElement("tbody");
+      const axisX = document.getElementById("axisX");
+      const axisY = document.getElementById("axisY");
+      const grid = document.getElementById("grid");
+      const xAxisTrack = document.getElementById("xAxisTrack");
+      const yAxisTrack = document.getElementById("yAxisTrack");
+      const notesViewport = document.getElementById("notesViewport");
 
-      // 头部第 1 行：全音符分组
-      const wholeRow = document.createElement("tr");
-      const corner = document.createElement("th");
-      corner.className = "corner";
-      corner.rowSpan = 2;
-      corner.textContent = "MIDI / 时值";
-      wholeRow.appendChild(corner);
-
+      // 横轴（外层单元格内的嵌套表格）
+      const xWholeRow = document.createElement("tr");
       for (let q = 0; q < QUARTER_COUNT; q += QUARTERS_PER_WHOLE) {
-        const whole = document.createElement("th");
-        whole.className = "head-whole";
-        whole.colSpan = QUARTERS_PER_WHOLE;
-        whole.innerHTML = `<strong>全音符 ${q / QUARTERS_PER_WHOLE}</strong>`;
-        wholeRow.appendChild(whole);
+        const th = document.createElement("th");
+        th.className = "wholeHead";
+        th.colSpan = QUARTERS_PER_WHOLE;
+        th.textContent = `全音符 ${q / QUARTERS_PER_WHOLE}`;
+        xWholeRow.appendChild(th);
       }
-      thead.appendChild(wholeRow);
+      axisX.appendChild(xWholeRow);
 
-      // 头部第 2 行：四分音符刻度
-      const quarterRow = document.createElement("tr");
+      const xQuarterRow = document.createElement("tr");
       for (let q = 0; q < QUARTER_COUNT; q++) {
-        const quarter = document.createElement("th");
-        quarter.className = "head-quarter";
-        if (q % QUARTERS_PER_WHOLE === 0) {
-          quarter.classList.add("whole-start");
-        }
-        quarter.title = `四分音符 ${q}`;
-        quarterRow.appendChild(quarter);
+        const th = document.createElement("th");
+        th.className = "quarterHead";
+        if (q % QUARTERS_PER_WHOLE === 0) th.classList.add("wholeStart");
+        th.title = `四分音符 ${q}`;
+        xQuarterRow.appendChild(th);
       }
-      thead.appendChild(quarterRow);
+      axisX.appendChild(xQuarterRow);
 
-      // 主网格：MIDI 108 -> 21
-      for (let midi = MIDI_MAX; midi >= MIDI_MIN; midi--) {
-        const tr = document.createElement("tr");
-        tr.className = "pitch-row";
+      // 纵轴（外层单元格内的嵌套表格） + 音符区内层网格
+      for (let i = 0; i < MIDI_COUNT; i++) {
+        const midi = MIDI_MAX - i;
 
-        const midiCell = document.createElement("th");
-        midiCell.className = "midi";
-        midiCell.textContent = String(midi);
-        tr.appendChild(midiCell);
+        const yTr = document.createElement("tr");
+        const yTh = document.createElement("th");
+        yTh.textContent = String(midi);
+        yTr.appendChild(yTh);
+        axisY.appendChild(yTr);
 
+        const gTr = document.createElement("tr");
         for (let q = 0; q < QUARTER_COUNT; q++) {
           const td = document.createElement("td");
-          td.className = "cell";
           td.dataset.midi = String(midi);
           td.dataset.quarter = String(q);
-          if (q % QUARTERS_PER_WHOLE === 0) {
-            td.classList.add("whole-start");
-          }
-          tr.appendChild(td);
+          if (q % QUARTERS_PER_WHOLE === 0) td.classList.add("wholeStart");
+          gTr.appendChild(td);
         }
-
-        tbody.appendChild(tr);
+        grid.appendChild(gTr);
       }
 
-      table.appendChild(thead);
-      table.appendChild(tbody);
+      // 音符区监听滚动，同步横轴与纵轴，形成电子表格跟随效果
+      notesViewport.addEventListener("scroll", () => {
+        const { scrollLeft, scrollTop } = notesViewport;
+        xAxisTrack.style.transform = `translateX(${-scrollLeft}px)`;
+        yAxisTrack.style.transform = `translateY(${-scrollTop}px)`;
+      });
 
-      // 点击单元格创建固定大小音符
-      tbody.addEventListener("click", (event) => {
-        const cell = event.target.closest("td.cell");
+      // 点击内层网格创建固定大小音符
+      grid.addEventListener("click", (event) => {
+        const cell = event.target.closest("td");
         if (!cell) return;
 
         const note = document.createElement("div");
