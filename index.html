@@ -248,6 +248,7 @@
       </table>
     </div>
 
+    <script src="./noteNames.js"></script>
     <script>
       const MIDI_MIN = 21;
       const MIDI_MAX = 108;
@@ -289,7 +290,8 @@
 
         const yTr = document.createElement("tr");
         const yTh = document.createElement("th");
-        yTh.textContent = String(midi);
+        const noteName = window.MIDI_NOTE_NAMES?.[midi - MIDI_MIN] ?? "";
+        yTh.textContent = noteName ? `${midi} ${noteName}` : String(midi);
         yTr.appendChild(yTh);
         axisY.appendChild(yTr);
 
