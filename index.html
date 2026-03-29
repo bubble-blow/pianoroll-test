@@ -76,6 +76,9 @@
         height: calc(100% - (var(--whole-head-h) + var(--quarter-head-h)));
       }
 
+      tr.mainRow > td {
+        position: relative;
+      }
 
       td.cornerCell {
         width: var(--axis-left);
@@ -110,8 +113,10 @@
       }
 
       #yAxisViewport {
-        width: var(--axis-left);
+        width: 100%;
         height: 100%;
+        position: absolute;
+        inset: 0;
       }
 
       #xAxisTrack,
@@ -174,6 +179,8 @@
         height: 100%;
         overflow: auto;
         background: var(--panel);
+        position: absolute;
+        inset: 0;
       }
 
       #notesContent {
