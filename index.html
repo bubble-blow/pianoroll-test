@@ -45,6 +45,34 @@
         border-bottom: 1px solid var(--line);
       }
 
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--line);
+        background: #10162a;
+        font-size: 13px;
+      }
+
+      .toolbar input {
+        width: 88px;
+        padding: 4px 6px;
+        background: #0b1020;
+        color: var(--text);
+        border: 1px solid var(--line-strong);
+        border-radius: 4px;
+      }
+
+      .toolbar button {
+        padding: 4px 10px;
+        border-radius: 4px;
+        border: 1px solid var(--line-strong);
+        background: #1a2447;
+        color: var(--text);
+        cursor: pointer;
+      }
+
       #layoutWrap {
         flex: 1;
         min-height: 0;
@@ -160,6 +188,11 @@
         height: var(--quarter-head-h);
       }
 
+      .quarterHead.active-col,
+      table.grid td.active-col {
+        background: rgba(79, 94, 160, 0.35);
+      }
+
       .wholeStart {
         border-left-color: var(--line-strong) !important;
       }
@@ -214,6 +247,12 @@
   </head>
   <body>
     <h1 class="title">Piano Roll（嵌套表格 + 轴跟随滚动）</h1>
+    <div class="toolbar">
+      <label for="tempoInput">速度(BPM)</label>
+      <input id="tempoInput" type="number" min="20" max="400" step="1" value="120" />
+      <button id="playBtn" type="button">播放</button>
+      <button id="stopBtn" type="button">停止</button>
+    </div>
 
     <div id="layoutWrap">
       <table class="outer">
@@ -262,6 +301,12 @@
       const xAxisTrack = document.getElementById("xAxisTrack");
       const yAxisTrack = document.getElementById("yAxisTrack");
       const notesViewport = document.getElementById("notesViewport");
+      const tempoInput = document.getElementById("tempoInput");
+      const playBtn = document.getElementById("playBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const quarterHeadCells = [];
+      let playTimer = null;
+      let activeQuarter = -1;
 
       // 横轴（外层单元格内的嵌套表格）
       const xWholeRow = document.createElement("tr");
@@ -281,6 +326,7 @@
         if (q % QUARTERS_PER_WHOLE === 0) th.classList.add("wholeStart");
         th.title = `四分音符 ${q}`;
         xQuarterRow.appendChild(th);
+        quarterHeadCells.push(th);
       }
       axisX.appendChild(xQuarterRow);
 
@@ -321,6 +367,62 @@
         const note = document.createElement("div");
         note.className = "note";
         cell.appendChild(note);
+      });
+
+      function clearHighlight() {
+        if (activeQuarter < 0) return;
+        quarterHeadCells[activeQuarter]?.classList.remove("active-col");
+        for (const row of grid.rows) {
+          row.cells[activeQuarter]?.classList.remove("active-col");
+        }
+      }
+
+      function collectColumnNoteNames(quarterIndex) {
+        const names = [];
+        for (const row of grid.rows) {
+          const cell = row.cells[quarterIndex];
+          if (!cell || !cell.querySelector(".note")) continue;
+          const midi = Number(cell.dataset.midi);
+          const noteName = window.MIDI_NOTE_NAMES?.[midi - MIDI_MIN] ?? String(midi);
+          names.push(noteName);
+        }
+        return names;
+      }
+
+      function setHighlight(quarterIndex) {
+        clearHighlight();
+        activeQuarter = quarterIndex;
+        quarterHeadCells[quarterIndex]?.classList.add("active-col");
+        for (const row of grid.rows) {
+          row.cells[quarterIndex]?.classList.add("active-col");
+        }
+
+        const names = collectColumnNoteNames(quarterIndex);
+        console.log(`高亮列 ${quarterIndex} 音符:`, names);
+      }
+
+      function stopPlayback() {
+        if (playTimer) {
+          clearInterval(playTimer);
+          playTimer = null;
+        }
+        clearHighlight();
+        activeQuarter = -1;
+      }
+
+      playBtn.addEventListener("click", () => {
+        const bpm = Math.max(20, Number(tempoInput.value) || 120);
+        const quarterMs = 60000 / bpm;
+        stopPlayback();
+        setHighlight(0);
+        playTimer = setInterval(() => {
+          const next = (activeQuarter + 1) % QUARTER_COUNT;
+          setHighlight(next);
+        }, quarterMs);
+      });
+
+      stopBtn.addEventListener("click", () => {
+        stopPlayback();
       });
     </script>
   </body>
