@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Piano Roll</title>
+    <title>Piano Roll（表格布局）</title>
     <style>
       :root {
         --bg: #0f1220;
@@ -14,14 +14,12 @@
         --axis-bg: #13182a;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       html,
       body {
-        height: 100%;
         margin: 0;
+        height: 100%;
         background: var(--bg);
         color: var(--text);
         font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -37,101 +35,106 @@
         padding: 12px 16px;
         font-size: 16px;
         border-bottom: 1px solid var(--line);
-        background: #0d1120;
       }
 
       #viewport {
-        position: relative;
         flex: 1;
         overflow: auto;
-        border-top: 1px solid var(--line);
       }
 
       #content {
         position: relative;
       }
 
-      #corner,
-      #xAxis,
-      #yAxis {
+      table.pianoroll {
+        border-collapse: collapse;
+        table-layout: fixed;
+        background: var(--panel);
+      }
+
+      .pianoroll th,
+      .pianoroll td {
+        border: 1px solid var(--line);
+        padding: 0;
+      }
+
+      .corner,
+      .midi,
+      .head-whole,
+      .head-quarter {
         position: sticky;
-        z-index: 30;
         background: var(--axis-bg);
+        z-index: 5;
       }
 
-      #corner {
+      .corner {
         left: 0;
         top: 0;
-        border-right: 1px solid var(--line-strong);
-        border-bottom: 1px solid var(--line-strong);
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        min-width: 72px;
+        width: 72px;
+        text-align: center;
         font-size: 12px;
-        color: #b6c0f8;
+        z-index: 20;
+        border-right-color: var(--line-strong) !important;
+        border-bottom-color: var(--line-strong) !important;
       }
 
-      #xAxis {
+      .head-whole,
+      .head-quarter {
         top: 0;
-        left: var(--axis-left-width);
-        border-bottom: 1px solid var(--line-strong);
-        overflow: hidden;
-      }
-
-      #yAxis {
-        top: var(--axis-top-height);
-        left: 0;
-        border-right: 1px solid var(--line-strong);
-        overflow: hidden;
-      }
-
-      .x-label,
-      .y-label {
-        position: absolute;
+        text-align: left;
         font-size: 11px;
         color: #c9d1ff;
-        user-select: none;
-        pointer-events: none;
       }
 
-      .x-label {
-        transform: translateX(2px);
-        top: 2px;
+      .head-whole {
+        height: 20px;
+        border-bottom-color: var(--line-strong) !important;
       }
 
-      .x-quarter {
-        position: absolute;
-        bottom: 0;
-        width: 1px;
-        background: var(--line);
-        height: 8px;
-      }
-
-      .x-whole {
-        background: var(--line-strong);
+      .head-quarter {
         height: 14px;
       }
 
-      .y-label {
-        right: 8px;
-        transform: translateY(-50%);
+      .head-whole strong {
+        margin-left: 2px;
+        font-weight: 600;
       }
 
-      #grid {
-        position: absolute;
-        background-color: var(--panel);
-        cursor: crosshair;
-        z-index: 1;
+      .midi {
+        left: 0;
+        width: 72px;
+        min-width: 72px;
+        text-align: right;
+        padding-right: 8px !important;
+        font-size: 11px;
+        color: #c9d1ff;
+        border-right-color: var(--line-strong) !important;
       }
 
-      #notesLayer {
-        position: absolute;
-        z-index: 10;
-        pointer-events: none;
+      td.cell,
+      th.head-quarter,
+      th.head-whole {
+        width: 26px;
+      }
+
+      tr.pitch-row td.cell {
+        height: 22px;
+        position: relative;
+      }
+
+      th.head-quarter.whole-start,
+      td.cell.whole-start {
+        border-left-color: var(--line-strong);
       }
 
       .note {
         position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 52px;
+        height: 16px;
         border-radius: 3px;
         border: 1px solid rgba(255, 255, 255, 0.2);
         background: linear-gradient(
@@ -139,127 +142,93 @@
           rgba(101, 196, 255, 0.95),
           rgba(101, 196, 255, 0.1)
         );
+        pointer-events: none;
       }
     </style>
   </head>
   <body>
-    <h1 class="title">Piano Roll（点击网格创建音符）</h1>
+    <h1 class="title">Piano Roll（表格布局，点击网格创建音符）</h1>
     <div id="viewport">
       <div id="content">
-        <div id="corner">MIDI / 时值</div>
-        <div id="xAxis"></div>
-        <div id="yAxis"></div>
-        <div id="grid"></div>
-        <div id="notesLayer"></div>
+        <table class="pianoroll" id="pianoroll"></table>
       </div>
     </div>
 
     <script>
       const MIDI_MIN = 21;
       const MIDI_MAX = 108;
-      const MIDI_COUNT = MIDI_MAX - MIDI_MIN + 1;
-
       const QUARTER_COUNT = 256;
       const QUARTERS_PER_WHOLE = 4;
 
-      const AXIS_LEFT = 72;
-      const AXIS_TOP = 34;
-      const COL_WIDTH = 26;
-      const ROW_HEIGHT = 22;
-      const NOTE_WIDTH = 52;
-      const NOTE_HEIGHT = 16;
+      const table = document.getElementById("pianoroll");
+      const thead = document.createElement("thead");
+      const tbody = document.createElement("tbody");
 
-      const content = document.getElementById("content");
-      const corner = document.getElementById("corner");
-      const xAxis = document.getElementById("xAxis");
-      const yAxis = document.getElementById("yAxis");
-      const grid = document.getElementById("grid");
-      const notesLayer = document.getElementById("notesLayer");
+      // 头部第 1 行：全音符分组
+      const wholeRow = document.createElement("tr");
+      const corner = document.createElement("th");
+      corner.className = "corner";
+      corner.rowSpan = 2;
+      corner.textContent = "MIDI / 时值";
+      wholeRow.appendChild(corner);
 
-      const gridWidth = QUARTER_COUNT * COL_WIDTH;
-      const gridHeight = MIDI_COUNT * ROW_HEIGHT;
+      for (let q = 0; q < QUARTER_COUNT; q += QUARTERS_PER_WHOLE) {
+        const whole = document.createElement("th");
+        whole.className = "head-whole";
+        whole.colSpan = QUARTERS_PER_WHOLE;
+        whole.innerHTML = `<strong>全音符 ${q / QUARTERS_PER_WHOLE}</strong>`;
+        wholeRow.appendChild(whole);
+      }
+      thead.appendChild(wholeRow);
 
-      const contentWidth = AXIS_LEFT + gridWidth;
-      const contentHeight = AXIS_TOP + gridHeight;
-
-      document.documentElement.style.setProperty("--axis-left-width", `${AXIS_LEFT}px`);
-      document.documentElement.style.setProperty("--axis-top-height", `${AXIS_TOP}px`);
-
-      content.style.width = `${contentWidth}px`;
-      content.style.height = `${contentHeight}px`;
-
-      corner.style.width = `${AXIS_LEFT}px`;
-      corner.style.height = `${AXIS_TOP}px`;
-
-      xAxis.style.width = `${gridWidth}px`;
-      xAxis.style.height = `${AXIS_TOP}px`;
-
-      yAxis.style.width = `${AXIS_LEFT}px`;
-      yAxis.style.height = `${gridHeight}px`;
-
-      grid.style.left = `${AXIS_LEFT}px`;
-      grid.style.top = `${AXIS_TOP}px`;
-      grid.style.width = `${gridWidth}px`;
-      grid.style.height = `${gridHeight}px`;
-
-      notesLayer.style.left = `${AXIS_LEFT}px`;
-      notesLayer.style.top = `${AXIS_TOP}px`;
-      notesLayer.style.width = `${gridWidth}px`;
-      notesLayer.style.height = `${gridHeight}px`;
-
-      grid.style.backgroundImage = [
-        `repeating-linear-gradient(to right, transparent 0, transparent ${COL_WIDTH - 1}px, rgba(42, 50, 85, 1) ${COL_WIDTH - 1}px, rgba(42, 50, 85, 1) ${COL_WIDTH}px)`,
-        `repeating-linear-gradient(to right, transparent 0, transparent ${COL_WIDTH * QUARTERS_PER_WHOLE - 1}px, rgba(79, 94, 160, 1) ${COL_WIDTH * QUARTERS_PER_WHOLE - 1}px, rgba(79, 94, 160, 1) ${COL_WIDTH * QUARTERS_PER_WHOLE}px)`,
-        `repeating-linear-gradient(to bottom, transparent 0, transparent ${ROW_HEIGHT - 1}px, rgba(42, 50, 85, 1) ${ROW_HEIGHT - 1}px, rgba(42, 50, 85, 1) ${ROW_HEIGHT}px)`
-      ].join(",");
-
-      for (let q = 0; q <= QUARTER_COUNT; q++) {
-        const tick = document.createElement("div");
-        tick.className = `x-quarter ${q % QUARTERS_PER_WHOLE === 0 ? "x-whole" : ""}`;
-        tick.style.left = `${q * COL_WIDTH}px`;
-        xAxis.appendChild(tick);
-
+      // 头部第 2 行：四分音符刻度
+      const quarterRow = document.createElement("tr");
+      for (let q = 0; q < QUARTER_COUNT; q++) {
+        const quarter = document.createElement("th");
+        quarter.className = "head-quarter";
         if (q % QUARTERS_PER_WHOLE === 0) {
-          const label = document.createElement("div");
-          label.className = "x-label";
-          label.textContent = `全音符 ${q / QUARTERS_PER_WHOLE}`;
-          label.style.left = `${q * COL_WIDTH + 2}px`;
-          xAxis.appendChild(label);
+          quarter.classList.add("whole-start");
         }
+        quarter.title = `四分音符 ${q}`;
+        quarterRow.appendChild(quarter);
+      }
+      thead.appendChild(quarterRow);
+
+      // 主网格：MIDI 108 -> 21
+      for (let midi = MIDI_MAX; midi >= MIDI_MIN; midi--) {
+        const tr = document.createElement("tr");
+        tr.className = "pitch-row";
+
+        const midiCell = document.createElement("th");
+        midiCell.className = "midi";
+        midiCell.textContent = String(midi);
+        tr.appendChild(midiCell);
+
+        for (let q = 0; q < QUARTER_COUNT; q++) {
+          const td = document.createElement("td");
+          td.className = "cell";
+          td.dataset.midi = String(midi);
+          td.dataset.quarter = String(q);
+          if (q % QUARTERS_PER_WHOLE === 0) {
+            td.classList.add("whole-start");
+          }
+          tr.appendChild(td);
+        }
+
+        tbody.appendChild(tr);
       }
 
-      for (let i = 0; i < MIDI_COUNT; i++) {
-        const midi = MIDI_MAX - i;
-        const label = document.createElement("div");
-        label.className = "y-label";
-        label.textContent = String(midi);
-        label.style.top = `${i * ROW_HEIGHT + ROW_HEIGHT / 2}px`;
-        yAxis.appendChild(label);
-      }
+      table.appendChild(thead);
+      table.appendChild(tbody);
 
-      grid.addEventListener("click", (event) => {
-        const rect = grid.getBoundingClientRect();
-        const localX = event.clientX - rect.left;
-        const localY = event.clientY - rect.top;
-
-        const quarterIndex = Math.floor(localX / COL_WIDTH);
-        const rowIndex = Math.floor(localY / ROW_HEIGHT);
-
-        if (quarterIndex < 0 || quarterIndex >= QUARTER_COUNT) return;
-        if (rowIndex < 0 || rowIndex >= MIDI_COUNT) return;
+      // 点击单元格创建固定大小音符
+      tbody.addEventListener("click", (event) => {
+        const cell = event.target.closest("td.cell");
+        if (!cell) return;
 
         const note = document.createElement("div");
         note.className = "note";
-
-        const left = quarterIndex * COL_WIDTH;
-        const top = rowIndex * ROW_HEIGHT + (ROW_HEIGHT - NOTE_HEIGHT) / 2;
-
-        note.style.left = `${left}px`;
-        note.style.top = `${top}px`;
-        note.style.width = `${NOTE_WIDTH}px`;
-        note.style.height = `${NOTE_HEIGHT}px`;
-
-        notesLayer.appendChild(note);
+        cell.appendChild(note);
       });
     </script>
   </body>
