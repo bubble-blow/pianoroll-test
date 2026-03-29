@@ -240,7 +240,12 @@
           rgba(101, 196, 255, 0.95),
           rgba(101, 196, 255, 0.1)
         );
-        pointer-events: none;
+        pointer-events: auto;
+        cursor: pointer;
+      }
+
+      .note.selected {
+        box-shadow: 0 0 0 2px rgba(255, 235, 130, 0.95), 0 0 10px rgba(255, 235, 130, 0.55);
       }
     </style>
   </head>
@@ -306,6 +311,7 @@
       const quarterHeadCells = [];
       let playTimer = null;
       let activeQuarter = -1;
+      let selectedNote = null;
 
       // 横轴（外层单元格内的嵌套表格）
       const xWholeRow = document.createElement("tr");
@@ -360,6 +366,14 @@
 
       // 点击内层网格创建固定大小音符
       grid.addEventListener("click", (event) => {
+        const clickedNote = event.target.closest(".note");
+        if (clickedNote) {
+          if (selectedNote) selectedNote.classList.remove("selected");
+          selectedNote = clickedNote;
+          selectedNote.classList.add("selected");
+          return;
+        }
+
         const cell = event.target.closest("td");
         if (!cell) return;
 
@@ -372,6 +386,9 @@
         note.className = "note";
         note.style.left = `${snappedOffset}px`;
         note.dataset.eighth = snappedOffset > 0 ? "1" : "0";
+        if (selectedNote) selectedNote.classList.remove("selected");
+        selectedNote = note;
+        selectedNote.classList.add("selected");
         cell.appendChild(note);
       });
 
