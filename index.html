@@ -207,6 +207,10 @@
         background: var(--axis-bg);
       }
 
+      table.axisY th.white-key {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
       #notesViewport {
         width: 100%;
         height: 100%;
@@ -344,6 +348,8 @@
         const yTh = document.createElement("th");
         const noteName = window.MIDI_NOTE_NAMES?.[midi - MIDI_MIN] ?? "";
         yTh.textContent = noteName ? `${midi} ${noteName}` : String(midi);
+        const isWhiteKey = [0, 2, 4, 5, 7, 9, 11].includes(midi % 12);
+        if (isWhiteKey) yTh.classList.add("white-key");
         yTr.appendChild(yTh);
         axisY.appendChild(yTr);
 
