@@ -419,14 +419,13 @@
         const cellWidth = parseFloat(
           getComputedStyle(document.documentElement).getPropertyValue("--note-cell-min-width")
         ) || 48;
-        const step = cellWidth / 4;
         const quarterIndex = Math.floor(startQuarter);
         if (quarterIndex < 0 || quarterIndex >= QUARTER_COUNT) return;
         const rawOffset = (startQuarter - quarterIndex) * cellWidth;
-        const snappedOffset = Math.max(0, Math.min(cellWidth - step, Math.round(rawOffset / step) * step));
+        const preservedOffset = Math.max(0, Math.min(cellWidth - 0.001, rawOffset));
         const cell = grid.rows[rowIndex].cells[quarterIndex];
         if (!cell) return;
-        cell.appendChild(createNoteElement(snappedOffset, { voice }));
+        cell.appendChild(createNoteElement(preservedOffset, { voice }));
       }
 
       function importMusicXML(xmlText) {
