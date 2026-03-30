@@ -258,6 +258,8 @@
     <div class="toolbar">
       <label for="tempoInput">速度(BPM)</label>
       <input id="tempoInput" type="number" min="20" max="400" step="1" value="120" />
+      <button id="importBtn" type="button">导入</button>
+      <input id="importFileInput" type="file" accept=".xml,.musicxml,.mxl" style="display: none" />
       <button id="playBtn" type="button">播放</button>
       <button id="stopBtn" type="button">停止</button>
     </div>
@@ -310,6 +312,8 @@
       const yAxisTrack = document.getElementById("yAxisTrack");
       const notesViewport = document.getElementById("notesViewport");
       const tempoInput = document.getElementById("tempoInput");
+      const importBtn = document.getElementById("importBtn");
+      const importFileInput = document.getElementById("importFileInput");
       const playBtn = document.getElementById("playBtn");
       const stopBtn = document.getElementById("stopBtn");
       const quarterHeadCells = [];
@@ -371,6 +375,103 @@
         yAxisTrack.style.transform = `translateY(${-scrollTop}px)`;
       });
 
+      function createNoteElement(snappedOffset) {
+        const note = document.createElement("div");
+        note.className = "note";
+        note.style.left = `${snappedOffset}px`;
+        note.dataset.eighth = snappedOffset > 0 ? "1" : "0";
+        return note;
+      }
+
+      function clearAllNotes() {
+        grid.querySelectorAll(".note").forEach((note) => note.remove());
+        selectedNote = null;
+      }
+
+      function pitchToMidi(step, alter, octave) {
+        const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[step];
+        if (base === undefined) return null;
+        return (octave + 1) * 12 + base + alter;
+      }
+
+      function placeNoteByTimeAndMidi(startQuarter, midi) {
+        const rowIndex = MIDI_MAX - midi;
+        if (rowIndex < 0 || rowIndex >= grid.rows.length) return;
+
+        const cellWidth = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue("--note-cell-min-width")
+        ) || 48;
+        const step = cellWidth / 4;
+        const quarterIndex = Math.floor(startQuarter);
+        if (quarterIndex < 0 || quarterIndex >= QUARTER_COUNT) return;
+        const rawOffset = (startQuarter - quarterIndex) * cellWidth;
+        const snappedOffset = Math.max(0, Math.min(cellWidth - step, Math.round(rawOffset / step) * step));
+        const cell = grid.rows[rowIndex].cells[quarterIndex];
+        if (!cell) return;
+        cell.appendChild(createNoteElement(snappedOffset));
+      }
+
+      function importMusicXML(xmlText) {
+        const xml = new DOMParser().parseFromString(xmlText, "application/xml");
+        if (xml.querySelector("parsererror")) {
+          alert("MusicXML 解析失败，请检查文件格式。");
+          return;
+        }
+
+        clearAllNotes();
+        let divisions = 1;
+
+        const parts = xml.querySelectorAll("part");
+        for (const part of parts) {
+          let cursorDiv = 0;
+          let lastNoteStartDiv = 0;
+          const measures = part.querySelectorAll("measure");
+          for (const measure of measures) {
+            for (const node of measure.children) {
+              if (node.tagName === "attributes") {
+                const divNode = node.querySelector("divisions");
+                if (divNode) divisions = Number(divNode.textContent) || divisions;
+              } else if (node.tagName === "backup") {
+                cursorDiv -= Number(node.querySelector("duration")?.textContent || 0);
+              } else if (node.tagName === "forward") {
+                cursorDiv += Number(node.querySelector("duration")?.textContent || 0);
+              } else if (node.tagName === "note") {
+                const isChord = Boolean(node.querySelector("chord"));
+                const duration = Number(node.querySelector("duration")?.textContent || 0);
+                const startDiv = isChord ? lastNoteStartDiv : cursorDiv;
+                lastNoteStartDiv = startDiv;
+
+                if (!node.querySelector("rest")) {
+                  const step = node.querySelector("pitch > step")?.textContent?.trim();
+                  const alter = Number(node.querySelector("pitch > alter")?.textContent || 0);
+                  const octave = Number(node.querySelector("pitch > octave")?.textContent);
+                  if (step && Number.isFinite(octave)) {
+                    const midi = pitchToMidi(step, alter, octave);
+                    if (midi !== null && midi >= MIDI_MIN && midi <= MIDI_MAX) {
+                      placeNoteByTimeAndMidi(startDiv / divisions, midi);
+                    }
+                  }
+                }
+
+                if (!isChord) cursorDiv += duration;
+              }
+            }
+          }
+        }
+      }
+
+      importBtn.addEventListener("click", () => {
+        importFileInput.click();
+      });
+
+      importFileInput.addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        importMusicXML(text);
+        importFileInput.value = "";
+      });
+
       // 点击内层网格创建固定大小音符
       grid.addEventListener("click", (event) => {
         const clickedNote = event.target.closest(".note");
@@ -389,10 +490,7 @@
         const eighthOffset = rect.width / 2;
         const snappedOffset = localX >= eighthOffset ? eighthOffset : 0;
 
-        const note = document.createElement("div");
-        note.className = "note";
-        note.style.left = `${snappedOffset}px`;
-        note.dataset.eighth = snappedOffset > 0 ? "1" : "0";
+        const note = createNoteElement(snappedOffset);
         if (selectedNote) selectedNote.classList.remove("selected");
         selectedNote = note;
         selectedNote.classList.add("selected");
