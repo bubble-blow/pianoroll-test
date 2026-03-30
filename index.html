@@ -132,8 +132,15 @@
 
       #xAxisViewport,
       #yAxisViewport {
-        overflow: hidden;
+        overflow: auto;
         position: relative;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      #xAxisViewport::-webkit-scrollbar,
+      #yAxisViewport::-webkit-scrollbar {
+        display: none;
       }
 
       #xAxisViewport {
@@ -371,8 +378,8 @@
       // 音符区监听滚动，同步横轴与纵轴，形成电子表格跟随效果
       notesViewport.addEventListener("scroll", () => {
         const { scrollLeft, scrollTop } = notesViewport;
-        xAxisTrack.style.transform = `translateX(${-scrollLeft}px)`;
-        yAxisTrack.style.transform = `translateY(${-scrollTop}px)`;
+        document.getElementById("xAxisViewport").scrollLeft = scrollLeft;
+        document.getElementById("yAxisViewport").scrollTop = scrollTop;
       });
 
       function colorForVoice(voice) {
