@@ -259,7 +259,7 @@
       <label for="tempoInput">速度(BPM)</label>
       <input id="tempoInput" type="number" min="20" max="400" step="1" value="120" />
       <button id="importBtn" type="button">导入</button>
-      <input id="importFileInput" type="file" accept=".xml,.musicxml,.mxl" style="display: none" />
+      <input id="importFileInput" type="file" accept=".xml,.musicxml" style="display: none" />
       <button id="playBtn" type="button">播放</button>
       <button id="stopBtn" type="button">停止</button>
     </div>
@@ -375,11 +375,29 @@
         yAxisTrack.style.transform = `translateY(${-scrollTop}px)`;
       });
 
-      function createNoteElement(snappedOffset) {
+      function colorForVoice(voice) {
+        const palette = [
+          [101, 196, 255], // 蓝
+          [255, 171, 99],  // 橙
+          [155, 255, 140], // 绿
+          [224, 141, 255], // 紫
+          [255, 122, 180], // 粉
+          [255, 235, 130]  // 黄
+        ];
+        if (!voice) return palette[0];
+        const idx = Math.max(0, (Number(voice) || 1) - 1) % palette.length;
+        return palette[idx];
+      }
+
+      function createNoteElement(snappedOffset, options = {}) {
         const note = document.createElement("div");
+        const { voice = null } = options;
+        const [r, g, b] = colorForVoice(voice);
         note.className = "note";
         note.style.left = `${snappedOffset}px`;
+        note.style.background = `linear-gradient(to right, rgba(${r}, ${g}, ${b}, 0.95), rgba(${r}, ${g}, ${b}, 0.1))`;
         note.dataset.eighth = snappedOffset > 0 ? "1" : "0";
+        if (voice) note.dataset.voice = String(voice);
         return note;
       }
 
@@ -394,7 +412,7 @@
         return (octave + 1) * 12 + base + alter;
       }
 
-      function placeNoteByTimeAndMidi(startQuarter, midi) {
+      function placeNoteByTimeAndMidi(startQuarter, midi, voice = null) {
         const rowIndex = MIDI_MAX - midi;
         if (rowIndex < 0 || rowIndex >= grid.rows.length) return;
 
@@ -408,7 +426,7 @@
         const snappedOffset = Math.max(0, Math.min(cellWidth - step, Math.round(rawOffset / step) * step));
         const cell = grid.rows[rowIndex].cells[quarterIndex];
         if (!cell) return;
-        cell.appendChild(createNoteElement(snappedOffset));
+        cell.appendChild(createNoteElement(snappedOffset, { voice }));
       }
 
       function importMusicXML(xmlText) {
@@ -436,10 +454,12 @@
               } else if (node.tagName === "forward") {
                 cursorDiv += Number(node.querySelector("duration")?.textContent || 0);
               } else if (node.tagName === "note") {
+                if (node.querySelector("grace")) continue; // 不处理装饰音
                 const isChord = Boolean(node.querySelector("chord"));
                 const duration = Number(node.querySelector("duration")?.textContent || 0);
                 const startDiv = isChord ? lastNoteStartDiv : cursorDiv;
                 lastNoteStartDiv = startDiv;
+                const voice = node.querySelector("voice")?.textContent?.trim() || null;
 
                 if (!node.querySelector("rest")) {
                   const step = node.querySelector("pitch > step")?.textContent?.trim();
@@ -448,7 +468,7 @@
                   if (step && Number.isFinite(octave)) {
                     const midi = pitchToMidi(step, alter, octave);
                     if (midi !== null && midi >= MIDI_MIN && midi <= MIDI_MAX) {
-                      placeNoteByTimeAndMidi(startDiv / divisions, midi);
+                      placeNoteByTimeAndMidi(startDiv / divisions, midi, voice);
                     }
                   }
                 }
