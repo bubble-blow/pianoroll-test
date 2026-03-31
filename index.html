@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Piano Roll（嵌套表格布局）</title>
+    <style>
+      :root {
+        --bg: #0f1220;
+        --panel: #161b2f;
+        --axis-bg: #13182a;
+        --line: #2a3255;
+        --line-strong: #4f5ea0;
+        --text: #e7ebff;
+
+        --axis-left: 78px;
+        --note-cell-min-width: 48px;
+        --axis-cell-min-width: 192px;
+        --row-height: 22px;
+        --whole-head-h: 24px;
+        --quarter-head-h: 18px;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .title {
+        margin: 0;
+        padding: 12px 16px;
+        font-size: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--line);
+        background: #10162a;
+        font-size: 13px;
+      }
+
+      .toolbar input {
+        width: 88px;
+        padding: 4px 6px;
+        background: #0b1020;
+        color: var(--text);
+        border: 1px solid var(--line-strong);
+        border-radius: 4px;
+      }
+
+      .toolbar button {
+        padding: 4px 10px;
+        border-radius: 4px;
+        border: 1px solid var(--line-strong);
+        background: #1a2447;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      #layoutWrap {
+        flex: 1;
+        min-height: 0;
+        padding: 0;
+        overflow: hidden;
+        position: relative;
+      }
+
+      table.outer {
+        border-collapse: collapse;
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        table-layout: fixed;
+        position: absolute;
+        inset: 0;
+      }
+
+      .outer td {
+        border: 1px solid var(--line-strong);
+        padding: 0;
+        vertical-align: top;
+      }
+      tr.topRow {
+        height: calc(var(--whole-head-h) + var(--quarter-head-h));
+      }
+
+      tr.mainRow {
+        height: calc(100% - (var(--whole-head-h) + var(--quarter-head-h)));
+      }
+
+      tr.mainRow > td {
+        position: relative;
+      }
+
+      td.cornerCell {
+        width: var(--axis-left);
+        background: var(--axis-bg);
+        text-align: center;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .cornerInner {
+        height: calc(var(--whole-head-h) + var(--quarter-head-h));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      td.xAxisCell,
+      td.yAxisCell,
+      td.noteCell {
+        background: var(--axis-bg);
+        overflow: hidden;
+      }
+
+      #xAxisViewport,
+      #yAxisViewport {
+        overflow: hidden;
+        position: relative;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      #xAxisViewport::-webkit-scrollbar,
+      #yAxisViewport::-webkit-scrollbar {
+        display: none;
+      }
+
+      #xAxisViewport {
+        height: calc(var(--whole-head-h) + var(--quarter-head-h));
+      }
+
+      #yAxisViewport {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        inset: 0;
+      }
+
+      #xAxisTrack,
+      #yAxisTrack {
+        will-change: transform;
+      }
+
+      table.axisX,
+      table.axisY,
+      table.grid {
+        border-collapse: collapse;
+        table-layout: fixed;
+        width: max-content;
+      }
+
+      table.axisX th,
+      table.axisY th,
+      table.grid td {
+        border: 1px solid var(--line);
+        padding: 0;
+      }
+
+      table.axisX th {
+        width: var(--note-cell-min-width);
+        min-width: var(--note-cell-min-width);
+        color: #c9d1ff;
+        font-size: 11px;
+        font-weight: 500;
+        background: var(--axis-bg);
+      }
+
+      .wholeHead {
+        min-width: var(--axis-cell-min-width);
+        height: var(--whole-head-h);
+        border-bottom-color: var(--line-strong) !important;
+        text-align: left;
+        padding-left: 2px !important;
+      }
+
+      .quarterHead {
+        height: var(--quarter-head-h);
+      }
+
+      .quarterHead.active-col,
+      table.grid td.active-col {
+        background: rgba(79, 94, 160, 0.35);
+      }
+
+      .wholeStart {
+        border-left-color: var(--line-strong) !important;
+      }
+
+      table.axisY th {
+        width: var(--axis-left);
+        height: var(--row-height);
+        text-align: right;
+        padding-right: 8px !important;
+        font-size: 11px;
+        color: #c9d1ff;
+        background: var(--axis-bg);
+      }
+
+      table.axisY th.white-key {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      #notesViewport {
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background: var(--panel);
+        position: absolute;
+        inset: 0;
+      }
+
+      #notesContent {
+        position: relative;
+      }
+
+      table.grid td {
+        width: var(--note-cell-min-width);
+        min-width: var(--note-cell-min-width);
+        height: var(--row-height);
+        position: relative;
+      }
+
+      .note {
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 48px;
+        height: 16px;
+        border-radius: 3px;
+        background: linear-gradient(
+          to right,
+          rgba(101, 196, 255, 0.95),
+          rgba(101, 196, 255, 0.1)
+        );
+        pointer-events: auto;
+        cursor: pointer;
+      }
+
+      .note.selected {
+        box-shadow: 0 0 0 2px rgba(255, 235, 130, 0.95), 0 0 10px rgba(255, 235, 130, 0.55);
+      }
+    </style>
+  </head>
+  <body>
+    <h1 class="title">Piano Roll（嵌套表格 + 轴跟随滚动）</h1>
+    <div class="toolbar">
+      <label for="tempoInput">速度(BPM)</label>
+      <input id="tempoInput" type="number" min="20" max="400" step="1" value="120" />
+      <button id="importBtn" type="button">导入</button>
+      <input id="importFileInput" type="file" accept=".xml,.musicxml" style="display: none" />
+      <button id="playBtn" type="button">播放</button>
+      <button id="stopBtn" type="button">停止</button>
+    </div>
+
+    <div id="layoutWrap">
+      <table class="outer">
+        <tr class="topRow">
+          <td class="cornerCell">
+            <div class="cornerInner">MIDI / 时值</div>
+          </td>
+          <td class="xAxisCell">
+            <div id="xAxisViewport">
+              <div id="xAxisTrack">
+                <table class="axisX" id="axisX"></table>
+              </div>
+            </div>
+          </td>
+        </tr>
+        <tr class="mainRow">
+          <td class="yAxisCell">
+            <div id="yAxisViewport">
+              <div id="yAxisTrack">
+                <table class="axisY" id="axisY"></table>
+              </div>
+            </div>
+          </td>
+          <td class="noteCell">
+            <div id="notesViewport">
+              <div id="notesContent">
+                <table class="grid" id="grid"></table>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <script src="./noteNames.js"></script>
+    <script>
+      const MIDI_MIN = 21;
+      const MIDI_MAX = 108;
+      const MIDI_COUNT = MIDI_MAX - MIDI_MIN + 1;
+      const QUARTER_COUNT = 256;
+      const QUARTERS_PER_WHOLE = 4;
+
+      const axisX = document.getElementById("axisX");
+      const axisY = document.getElementById("axisY");
+      const grid = document.getElementById("grid");
+      const xAxisTrack = document.getElementById("xAxisTrack");
+      const yAxisTrack = document.getElementById("yAxisTrack");
+      const notesViewport = document.getElementById("notesViewport");
+      const tempoInput = document.getElementById("tempoInput");
+      const importBtn = document.getElementById("importBtn");
+      const importFileInput = document.getElementById("importFileInput");
+      const playBtn = document.getElementById("playBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const quarterHeadCells = [];
+      let playTimer = null;
+      let activeQuarter = -1;
+      let selectedNote = null;
+      const pendingNoteTimers = [];
+
+      // 横轴（外层单元格内的嵌套表格）
+      const xWholeRow = document.createElement("tr");
+      for (let q = 0; q < QUARTER_COUNT; q += QUARTERS_PER_WHOLE) {
+        const th = document.createElement("th");
+        th.className = "wholeHead";
+        th.colSpan = QUARTERS_PER_WHOLE;
+        th.textContent = `全音符 ${q / QUARTERS_PER_WHOLE}`;
+        xWholeRow.appendChild(th);
+      }
+      axisX.appendChild(xWholeRow);
+
+      const xQuarterRow = document.createElement("tr");
+      for (let q = 0; q < QUARTER_COUNT; q++) {
+        const th = document.createElement("th");
+        th.className = "quarterHead";
+        if (q % QUARTERS_PER_WHOLE === 0) th.classList.add("wholeStart");
+        th.title = `四分音符 ${q}`;
+        xQuarterRow.appendChild(th);
+        quarterHeadCells.push(th);
+      }
+      axisX.appendChild(xQuarterRow);
+
+      // 纵轴（外层单元格内的嵌套表格） + 音符区内层网格
+      for (let i = 0; i < MIDI_COUNT; i++) {
+        const midi = MIDI_MAX - i;
+
+        const yTr = document.createElement("tr");
+        const yTh = document.createElement("th");
+        const noteName = window.MIDI_NOTE_NAMES?.[midi - MIDI_MIN] ?? "";
+        yTh.textContent = noteName ? `${midi} ${noteName}` : String(midi);
+        const isWhiteKey = [0, 2, 4, 5, 7, 9, 11].includes(midi % 12);
+        if (isWhiteKey) yTh.classList.add("white-key");
+        yTr.appendChild(yTh);
+        axisY.appendChild(yTr);
+
+        const gTr = document.createElement("tr");
+        for (let q = 0; q < QUARTER_COUNT; q++) {
+          const td = document.createElement("td");
+          td.dataset.midi = String(midi);
+          td.dataset.quarter = String(q);
+          if (q % QUARTERS_PER_WHOLE === 0) td.classList.add("wholeStart");
+          gTr.appendChild(td);
+        }
+        grid.appendChild(gTr);
+      }
+
+      // 音符区监听滚动，同步横轴与纵轴，形成电子表格跟随效果
+      notesViewport.addEventListener("scroll", () => {
+        const { scrollLeft, scrollTop } = notesViewport;
+        document.getElementById("xAxisViewport").scrollLeft = scrollLeft;
+        document.getElementById("yAxisViewport").scrollTop = scrollTop;
+      });
+
+      function colorForVoice(voice) {
+        const palette = [
+          [101, 196, 255], // 蓝
+          [255, 171, 99],  // 橙
+          [155, 255, 140], // 绿
+          [224, 141, 255], // 紫
+          [255, 122, 180], // 粉
+          [255, 235, 130]  // 黄
+        ];
+        if (!voice) return palette[0];
+        const idx = Math.max(0, (Number(voice) || 1) - 1) % palette.length;
+        return palette[idx];
+      }
+
+      function createNoteElement(snappedOffset, options = {}) {
+        const note = document.createElement("div");
+        const { voice = null } = options;
+        const [r, g, b] = colorForVoice(voice);
+        note.className = "note";
+        note.style.left = `${snappedOffset}px`;
+        note.style.background = `linear-gradient(to right, rgba(${r}, ${g}, ${b}, 0.95), rgba(${r}, ${g}, ${b}, 0.1))`;
+        note.dataset.eighth = snappedOffset > 0 ? "1" : "0";
+        if (voice) note.dataset.voice = String(voice);
+        return note;
+      }
+
+      function clearAllNotes() {
+        grid.querySelectorAll(".note").forEach((note) => note.remove());
+        selectedNote = null;
+      }
+
+      function pitchToMidi(step, alter, octave) {
+        const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[step];
+        if (base === undefined) return null;
+        return (octave + 1) * 12 + base + alter;
+      }
+
+      function placeNoteByTimeAndMidi(startQuarter, midi, voice = null) {
+        const rowIndex = MIDI_MAX - midi;
+        if (rowIndex < 0 || rowIndex >= grid.rows.length) return;
+
+        const cellWidth = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue("--note-cell-min-width")
+        ) || 48;
+        const quarterIndex = Math.floor(startQuarter);
+        if (quarterIndex < 0 || quarterIndex >= QUARTER_COUNT) return;
+        const rawOffset = (startQuarter - quarterIndex) * cellWidth;
+        const preservedOffset = Math.max(0, Math.min(cellWidth - 0.001, rawOffset));
+        const cell = grid.rows[rowIndex].cells[quarterIndex];
+        if (!cell) return;
+        cell.appendChild(createNoteElement(preservedOffset, { voice }));
+      }
+
+      function importMusicXML(xmlText) {
+        const xml = new DOMParser().parseFromString(xmlText, "application/xml");
+        if (xml.querySelector("parsererror")) {
+          alert("MusicXML 解析失败，请检查文件格式。");
+          return;
+        }
+
+        clearAllNotes();
+        let divisions = 1;
+
+        const parts = xml.querySelectorAll("part");
+        for (const part of parts) {
+          let cursorDiv = 0;
+          let lastNoteStartDiv = 0;
+          const measures = part.querySelectorAll("measure");
+          for (const measure of measures) {
+            for (const node of measure.children) {
+              if (node.tagName === "attributes") {
+                const divNode = node.querySelector("divisions");
+                if (divNode) divisions = Number(divNode.textContent) || divisions;
+              } else if (node.tagName === "backup") {
+                cursorDiv -= Number(node.querySelector("duration")?.textContent || 0);
+              } else if (node.tagName === "forward") {
+                cursorDiv += Number(node.querySelector("duration")?.textContent || 0);
+              } else if (node.tagName === "note") {
+                if (node.querySelector("grace")) continue; // 不处理装饰音
+                const isChord = Boolean(node.querySelector("chord"));
+                const duration = Number(node.querySelector("duration")?.textContent || 0);
+                const startDiv = isChord ? lastNoteStartDiv : cursorDiv;
+                lastNoteStartDiv = startDiv;
+                const voice = node.querySelector("voice")?.textContent?.trim() || null;
+
+                if (!node.querySelector("rest")) {
+                  const step = node.querySelector("pitch > step")?.textContent?.trim();
+                  const alter = Number(node.querySelector("pitch > alter")?.textContent || 0);
+                  const octave = Number(node.querySelector("pitch > octave")?.textContent);
+                  if (step && Number.isFinite(octave)) {
+                    const midi = pitchToMidi(step, alter, octave);
+                    if (midi !== null && midi >= MIDI_MIN && midi <= MIDI_MAX) {
+                      placeNoteByTimeAndMidi(startDiv / divisions, midi, voice);
+                    }
+                  }
+                }
+
+                if (!isChord) cursorDiv += duration;
+              }
+            }
+          }
+        }
+      }
+
+      importBtn.addEventListener("click", () => {
+        importFileInput.click();
+      });
+
+      importFileInput.addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        importMusicXML(text);
+        importFileInput.value = "";
+      });
+
+      // 点击内层网格创建固定大小音符
+      grid.addEventListener("click", (event) => {
+        const clickedNote = event.target.closest(".note");
+        if (clickedNote) {
+          if (selectedNote) selectedNote.classList.remove("selected");
+          selectedNote = clickedNote;
+          selectedNote.classList.add("selected");
+          return;
+        }
+
+        const cell = event.target.closest("td");
+        if (!cell) return;
+
+        const rect = cell.getBoundingClientRect();
+        const localX = event.clientX - rect.left;
+        const eighthOffset = rect.width / 2;
+        const snappedOffset = localX >= eighthOffset ? eighthOffset : 0;
+
+        const note = createNoteElement(snappedOffset);
+        if (selectedNote) selectedNote.classList.remove("selected");
+        selectedNote = note;
+        selectedNote.classList.add("selected");
+        cell.appendChild(note);
+      });
+
+      function deleteSelectedNote() {
+        if (!selectedNote) return;
+        const noteToRemove = selectedNote;
+        selectedNote = null;
+        noteToRemove.remove();
+      }
+
+      function moveSelectedNoteBySixteenth(direction) {
+        if (!selectedNote) return;
+        const currentCell = selectedNote.closest("td");
+        if (!currentCell) return;
+
+        const row = currentCell.parentElement;
+        if (!row) return;
+
+        const cellWidth = currentCell.getBoundingClientRect().width;
+        const step = cellWidth / 4;
+        let newLeft = (parseFloat(selectedNote.style.left) || 0) + direction * step;
+        let quarterIndex = Number(currentCell.dataset.quarter);
+
+        while (newLeft < 0) {
+          if (quarterIndex <= 0) {
+            newLeft = 0;
+            break;
+          }
+          quarterIndex -= 1;
+          newLeft += cellWidth;
+        }
+
+        while (newLeft >= cellWidth) {
+          if (quarterIndex >= QUARTER_COUNT - 1) {
+            newLeft = cellWidth - step;
+            break;
+          }
+          quarterIndex += 1;
+          newLeft -= cellWidth;
+        }
+
+        const targetCell = row.querySelector(`td[data-quarter="${quarterIndex}"]`);
+        if (!targetCell) return;
+        targetCell.appendChild(selectedNote);
+        selectedNote.style.left = `${newLeft}px`;
+      }
+
+      window.addEventListener("keydown", (event) => {
+        if (!selectedNote) return;
+
+        if (event.key === "Delete" || event.key === "Backspace") {
+          event.preventDefault();
+          deleteSelectedNote();
+          return;
+        }
+
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          moveSelectedNoteBySixteenth(-1);
+          return;
+        }
+
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          moveSelectedNoteBySixteenth(1);
+        }
+      });
+
+      function clearHighlight() {
+        if (activeQuarter < 0) return;
+        quarterHeadCells[activeQuarter]?.classList.remove("active-col");
+        for (const row of grid.rows) {
+          row.cells[activeQuarter]?.classList.remove("active-col");
+        }
+      }
+
+      function collectColumnNotesByOffset(quarterIndex) {
+        const grouped = new Map();
+        for (const row of grid.rows) {
+          const cell = row.cells[quarterIndex];
+          if (!cell) continue;
+          const midi = Number(cell.dataset.midi);
+          const noteName = window.MIDI_NOTE_NAMES?.[midi - MIDI_MIN] ?? String(midi);
+          const notes = cell.querySelectorAll(".note");
+          for (const note of notes) {
+            const offset = parseFloat(note.style.left) || 0;
+            if (!grouped.has(offset)) grouped.set(offset, []);
+            grouped.get(offset).push(noteName);
+          }
+        }
+        return grouped;
+      }
+
+      function sendNoteRequest(noteName) {
+        const path = noteName.replaceAll("#", "s");
+        fetch(`http://localhost/${encodeURIComponent(path)}`).catch(() => {});
+      }
+
+      function scheduleColumnPlayback(quarterIndex, quarterMs) {
+        const grouped = collectColumnNotesByOffset(quarterIndex);
+        const cellWidth = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue("--note-cell-min-width")
+        ) || 48;
+        const sortedOffsets = [...grouped.keys()].sort((a, b) => a - b);
+
+        for (const offset of sortedOffsets) {
+          const delay = (offset / cellWidth) * quarterMs;
+          const noteNames = grouped.get(offset) || [];
+          const timerId = setTimeout(() => {
+            console.log(`高亮列 ${quarterIndex} 偏移 ${offset}px 音符:`, noteNames);
+            for (const noteName of noteNames) {
+              sendNoteRequest(noteName);
+            }
+          }, delay);
+          pendingNoteTimers.push(timerId);
+        }
+      }
+
+      function setHighlight(quarterIndex) {
+        clearHighlight();
+        activeQuarter = quarterIndex;
+        quarterHeadCells[quarterIndex]?.classList.add("active-col");
+        for (const row of grid.rows) {
+          row.cells[quarterIndex]?.classList.add("active-col");
+        }
+      }
+
+      function stopPlayback() {
+        if (playTimer) {
+          clearInterval(playTimer);
+          playTimer = null;
+        }
+        while (pendingNoteTimers.length > 0) {
+          clearTimeout(pendingNoteTimers.pop());
+        }
+        clearHighlight();
+        activeQuarter = -1;
+      }
+
+      playBtn.addEventListener("click", () => {
+        const bpm = Math.max(20, Number(tempoInput.value) || 120);
+        const quarterMs = 60000 / bpm;
+        stopPlayback();
+        setHighlight(0);
+        scheduleColumnPlayback(0, quarterMs);
+        playTimer = setInterval(() => {
+          const next = (activeQuarter + 1) % QUARTER_COUNT;
+          setHighlight(next);
+          scheduleColumnPlayback(next, quarterMs);
+        }, quarterMs);
+      });
+
+      stopBtn.addEventListener("click", () => {
+        stopPlayback();
+      });
+    </script>
+  </body>
+</html>
